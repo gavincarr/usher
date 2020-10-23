@@ -1,0 +1,15 @@
+.*.sw?
+.nfs*
+*~
+
+/DevNotes
+/TODO
+/cmd/usher/usher
+/data/*
+/delta/applied/*
+/dist/*
+/node_modules/*
+/pkg/linux_amd64/*
+/pkg/*.*/
+/src/*.*/
+/var/*
