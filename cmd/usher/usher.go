@@ -19,12 +19,12 @@ var CLI struct {
 
 	Add struct {
 		Url  string `arg name:"url" help:"Url to redirect to."`
-		Code string `arg optional name:"code" help:"Short code / slug to be used for mapping."`
+		Code string `arg optional name:"code" help:"Code to be used for mapping."`
 	} `cmd help:"Add a new mapping to the usher database."`
 
 	Rm struct {
-		Glob string `arg name:"glob" help:"Code glob of mappings to remove from the usher database."`
-	} `cmd help:"Remove mappings from the usher database."`
+		Code string `arg name:"code" help:"Code of mapping to remove from the database."`
+	} `cmd help:"Remove a mapping from the usher database."`
 }
 
 func main() {
@@ -63,7 +63,19 @@ func main() {
 	case "add <url>":
 		fmt.Printf("add %s %s\n", CLI.Add.Code, CLI.Add.Url)
 
-	case "rm <glob>":
+	case "rm <code>":
+		db, err := usher.NewDB("")
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = db.Remove(CLI.Rm.Code)
+		if err != nil {
+			if err == usher.ErrNotFound {
+				log.Fatalf("Error: code %q not found in usher database\n", CLI.Rm.Code)
+			} else {
+				log.Fatal(err)
+			}
+		}
 
 	default:
 		log.Fatal(ctx.Command())

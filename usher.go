@@ -17,6 +17,10 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+var (
+	ErrNotFound = errors.New("Not Found")
+)
+
 type DB struct {
 	Root     string // full path to usher root directory containing databases
 	Domain   string // fully-qualified domain whose mappings we want
@@ -116,7 +120,26 @@ func (db *DB) Add(url, code string) error {
 	return nil
 }
 
+// Remove the mapping with code from the database
+// Returns ErrNotFound if code does not exist in the database
 func (db *DB) Remove(code string) error {
+	mappings, err := db.readfile()
+	if err != nil {
+		return err
+	}
+
+	_, exists := mappings[code]
+	if !exists {
+		return ErrNotFound
+	}
+
+	delete(mappings, code)
+
+	err = db.writefile(mappings)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -135,4 +158,24 @@ func (db *DB) readfile() (map[string]string, error) {
 	}
 
 	return mappings, nil
+}
+
+// writefile is a utility function to write mappings to db.Filepath
+func (db *DB) writefile(mappings map[string]string) error {
+	data, err := yaml.Marshal(mappings)
+	if err != nil {
+		return err
+	}
+
+	tmpfile := db.Filepath + ".tmp"
+	err = ioutil.WriteFile(tmpfile, data, 0644)
+	if err != nil {
+		return err
+	}
+	err = os.Rename(tmpfile, db.Filepath)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
