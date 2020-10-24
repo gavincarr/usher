@@ -10,15 +10,25 @@ package usher
 import (
 	"errors"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
+	"time"
 
 	yaml "gopkg.in/yaml.v2"
 )
 
+const digits = "23456789"                // omit 0 and 1 as easily confused with o and l
+const chars = "abcdefghijkmnpqrstuvwxyz" // omit o and l as easily confused with 0 and 1
+const minRandomCodeLen = 5
+const maxRandomCodeLen = 8
+
 var (
-	ErrNotFound = errors.New("Not Found")
+	ErrNotFound   = errors.New("not found")
+	ErrCodeExists = errors.New("code already used")
 )
 
 type DB struct {
@@ -116,8 +126,43 @@ func (db *DB) List(glob string) ([]Entry, error) {
 	return entries, nil
 }
 
-func (db *DB) Add(url, code string) error {
-	return nil
+// Add a mapping for url and code to the database.
+// If code is missing, a random code will be generated and returned.
+func (db *DB) Add(url, code string) (string, error) {
+	mappings, err := db.readfile()
+	if err != nil {
+		return "", err
+	}
+
+	if code == "" {
+		code = randomCode(mappings)
+
+	} else {
+		// Check for parameter inversion
+		reUrl := regexp.MustCompile(`^https?://`)
+		if !reUrl.MatchString(url) && reUrl.MatchString(code) {
+			url, code = code, url
+		}
+
+		// Check whether code is already used
+		dburl, exists := mappings[code]
+		if exists {
+			if dburl == url {
+				// Trying to re-add the same url is not an error, just a noop
+				return code, nil
+			}
+			return code, ErrCodeExists
+		}
+	}
+
+	mappings[code] = url
+
+	err = db.writefile(mappings)
+	if err != nil {
+		return code, err
+	}
+
+	return code, nil
 }
 
 // Remove the mapping with code from the database
@@ -178,4 +223,28 @@ func (db *DB) writefile(mappings map[string]string) error {
 	}
 
 	return nil
+}
+
+// randomCode is a utility function to generate a random code
+// and check that it doesn't exist in mappings.
+// Random codes use the following pattern: 1 digit, then 4-7
+// lowercase ascii characters. This usually allows them to be
+// relatively easily distinguished from explicit codes, while
+// still being easy to communicate orally.
+func randomCode(mappings map[string]string) string {
+	rand.Seed(time.Now().UnixNano())
+	var b strings.Builder
+	b.WriteByte(digits[rand.Intn(len(digits))])
+	for i := 1; i < maxRandomCodeLen; i++ {
+		b.WriteByte(chars[rand.Intn(len(chars))])
+		// If long enough, check if exists in mappings, and return if not
+		if i+1 >= minRandomCodeLen {
+			s := b.String()
+			if _, exists := mappings[s]; !exists {
+				return s
+			}
+		}
+	}
+	// Failed to find an unused code? Just retry?
+	return randomCode(mappings)
 }

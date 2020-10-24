@@ -60,8 +60,30 @@ func main() {
 			fmt.Printf("%-12s %s\n", e.Code, e.Url)
 		}
 
+	case "add <url> <code>":
+		db, err := usher.NewDB("")
+		if err != nil {
+			log.Fatal(err)
+		}
+		_, err = db.Add(CLI.Add.Url, CLI.Add.Code)
+		if err != nil {
+			if err == usher.ErrCodeExists {
+				log.Fatalf("Error: code %q already exists in usher database\n", CLI.Add.Code)
+			} else {
+				log.Fatal(err)
+			}
+		}
+
 	case "add <url>":
-		fmt.Printf("add %s %s\n", CLI.Add.Code, CLI.Add.Url)
+		db, err := usher.NewDB("")
+		if err != nil {
+			log.Fatal(err)
+		}
+		code, err := db.Add(CLI.Add.Url, "")
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("Added mapping with code %q\n", code)
 
 	case "rm <code>":
 		db, err := usher.NewDB("")
