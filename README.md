@@ -8,6 +8,7 @@ database of `code => url` mappings, stored in a YAML text file.
 Usher mappings can be published to various backends (e.g. Amazon S3)
 to provide the actual redirection services.
 
+
 Installation
 ------------
 
@@ -17,10 +18,7 @@ Installation
 Usage
 -----
 
-    # Help output
-    usher -h
-
-    # Initialise a new database for your shortener domain
+    # Initialise a new database for the domain you want to use
     usher init example.me
 
     # Add a mapping with an explicit code (both url+code and code+url work)
@@ -48,7 +46,6 @@ Usage
 
     # Push current mappings to your backend
     usher push
-
 
 
 Author and Licence

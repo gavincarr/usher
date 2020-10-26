@@ -70,10 +70,20 @@ func NewDB(domain string) (*DB, error) {
 		root = filepath.Join(configDir, "usher")
 	}
 
-	// Get domain
+	// Derive domain if not set - check for USHER_DOMAIN in environment
 	if domain == "" {
 		domain = os.Getenv("USHER_DOMAIN")
 	}
+	// Else infer the domain if only one database exists
+	if domain == "" {
+		matches, _ := filepath.Glob(filepath.Join(root, "*.*.yml"))
+		if len(matches) == 1 {
+			// Exactly one match - strip .yml suffix to get domain
+			re := regexp.MustCompile(`.yml$`)
+			domain = re.ReplaceAllLiteralString(filepath.Base(matches[0]), "")
+		}
+	}
+	// Else give up with an error
 	if domain == "" {
 		return nil, errors.New("Domain not passed as parameter or set in env USHER_DOMAIN")
 	}
