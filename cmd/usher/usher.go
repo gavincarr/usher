@@ -22,6 +22,11 @@ var CLI struct {
 		Code string `arg optional name:"code" help:"Code to be used for mapping."`
 	} `cmd help:"Add a new mapping to the usher database."`
 
+	Update struct {
+		Url  string `arg name:"url" help:"Url to redirect to."`
+		Code string `arg name:"code" help:"Code to be updated."`
+	} `cmd help:"Update an existing mapping in the usher database with a new url."`
+
 	Rm struct {
 		Code string `arg name:"code" help:"Code of mapping to remove from the database."`
 	} `cmd help:"Remove a mapping from the usher database."`
@@ -87,6 +92,20 @@ func main() {
 			log.Fatal(err)
 		}
 		fmt.Printf("Added mapping with code %q\n", code)
+
+	case "update <url> <code>":
+		db, err := usher.NewDB("")
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = db.Update(CLI.Update.Url, CLI.Update.Code)
+		if err != nil {
+			if err == usher.ErrNotFound {
+				log.Fatalf("Error: code %q not found in usher database\n", CLI.Update.Code)
+			} else {
+				log.Fatal(err)
+			}
+		}
 
 	case "rm <code>":
 		db, err := usher.NewDB("")

@@ -34,6 +34,7 @@ const chars = "abcdefghijkmnpqrstuvwxyz" // omit o and l as easily confused with
 var (
 	ErrNotFound   = errors.New("not found")
 	ErrCodeExists = errors.New("code already used")
+	ErrNoChange   = errors.New("mapping unchanged")
 )
 
 type DB struct {
@@ -194,13 +195,45 @@ func (db *DB) Add(url, code string) (string, error) {
 	}
 
 	mappings[code] = url
-
 	err = db.writeDB(mappings)
 	if err != nil {
 		return code, err
 	}
 
 	return code, nil
+}
+
+// Update an existing mapping in the database, changing the URL.
+func (db *DB) Update(url, code string) error {
+	mappings, err := db.readDB()
+	if err != nil {
+		return err
+	}
+
+	// Check for parameter inversion
+	reUrl := regexp.MustCompile(`^https?://`)
+	if !reUrl.MatchString(url) && reUrl.MatchString(code) {
+		url, code = code, url
+	}
+
+	// If code is missing, abort
+	dburl, exists := mappings[code]
+	if !exists {
+		return ErrNotFound
+	}
+
+	// Trying to update to the same url is not an error, just a noop
+	if dburl == url {
+		return nil
+	}
+
+	mappings[code] = url
+	err = db.writeDB(mappings)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Remove the mapping with code from the database
