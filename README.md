@@ -18,8 +18,11 @@ Installation
 Usage
 -----
 
-    # Initialise a new database for the domain you want to use
+### Initialise a new database for the domain you want to use
+
     usher init example.me
+
+### Add, list, update, and remove mappings
 
     # Add a mapping with an explicit code (both url+code and code+url work)
     usher add https://github.com/gavincarr/usher usher
@@ -37,6 +40,8 @@ Usage
     # Delete a mapping
     usher rm github
 
+### Configure and publish to desired backend
+
     # Report locations of config and database
     usher config
     usher db
@@ -47,12 +52,16 @@ Usage
     # Push current mappings to your backend
     usher push
 
+### Help
+
+    usher -h
+
 
 Author and Licence
 ------------------
 
 Copyright 2020 Gavin Carr <gavin@openfusion.com.au>.
 
-usher is available under the terms of the Apache 2.0 Licence.
+usher is available under the terms of the MIT Licence.
 
 
