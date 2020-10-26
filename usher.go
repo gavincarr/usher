@@ -97,9 +97,10 @@ func NewDB(domain string) (*DB, error) {
 	return &DB{Root: root, Domain: domain, DBPath: dbpath, ConfigPath: configpath}, nil
 }
 
-// Init checks whether an usher root exists, creating it, if not,
-// and then checks whether an usher database exists for domain,
-// creating it if not.
+// Init checks and creates the following, if they don't exist:
+// - an usher root directory
+// - an usher database for the db.Domain
+// - an entry in the user config file for db.Domain
 func (db *DB) Init() (dbCreated bool, err error) {
 	dbCreated = false
 
@@ -129,16 +130,19 @@ func (db *DB) Init() (dbCreated bool, err error) {
 	// Ensure configfile exists
 	_, err = os.Stat(db.ConfigPath)
 	if err == nil {
-		// FIXME: check/create an entry for domain
+		_, err := db.readConfig()
+		if err != nil {
+			if err != ErrNotFound {
+				return dbCreated, err
+			}
+		}
+		err = db.appendConfigString(db.configPlaceholder())
+		if err != nil {
+			return dbCreated, err
+		}
 	} else {
 		// Create a placeholder config file for domain
-		data := db.Domain + `:
-# type: s3
-# aws_key: foo
-# aws_secret: bar
-# aws_region: us-east-1
-`
-		err = db.writeConfigString(data)
+		err = db.writeConfigString(db.configPlaceholder())
 		if err != nil {
 			return dbCreated, err
 		}
@@ -311,6 +315,10 @@ func (db *DB) readDB() (map[string]string, error) {
 		return nil, err
 	}
 
+	if len(mappings) == 0 {
+		mappings = make(map[string]string)
+	}
+
 	return mappings, nil
 }
 
@@ -350,8 +358,7 @@ func (db *DB) readConfig() (*ConfigEntry, error) {
 
 	entry, exists := entries[db.Domain]
 	if !exists {
-		return nil, fmt.Errorf("no entry found for %q in config %q\n",
-			db.Domain, db.ConfigPath)
+		return nil, ErrNotFound
 	}
 
 	return &entry, nil
@@ -361,6 +368,28 @@ func (db *DB) readConfig() (*ConfigEntry, error) {
 func (db *DB) writeConfigString(data string) error {
 	tmpfile := db.ConfigPath + ".tmp"
 	err := ioutil.WriteFile(tmpfile, []byte(data), 0600)
+	if err != nil {
+		return err
+	}
+	err = os.Rename(tmpfile, db.ConfigPath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// appendConfigString is a utility function to write data to db.ConfigPath
+func (db *DB) appendConfigString(data string) error {
+	config, err := ioutil.ReadFile(db.ConfigPath)
+	if err != nil {
+		return err
+	}
+
+	config = append(config, []byte(data)...)
+
+	tmpfile := db.ConfigPath + ".tmp"
+	err = ioutil.WriteFile(tmpfile, config, 0600)
 	if err != nil {
 		return err
 	}
@@ -394,4 +423,13 @@ func randomCode(mappings map[string]string) string {
 	}
 	// Failed to find an unused code? Just retry?
 	return randomCode(mappings)
+}
+
+func (db *DB) configPlaceholder() string {
+	return db.Domain + `:
+# type: s3
+# aws_key: foo
+# aws_secret: bar
+# aws_region: us-east-1
+`
 }
