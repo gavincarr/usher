@@ -14,7 +14,7 @@ var CLI struct {
 	} `cmd help:"Initialise new usher database for domain."`
 
 	Ls struct {
-		Glob string `arg optional name:"glob" help:"Code glob of mappings to list."`
+		//		Glob string `arg optional name:"glob" help:"Code glob of mappings to list."`
 	} `cmd help:"List current mappings in the usher database."`
 
 	Add struct {
@@ -25,7 +25,7 @@ var CLI struct {
 	Update struct {
 		Url  string `arg name:"url" help:"Url to redirect to."`
 		Code string `arg name:"code" help:"Code to be updated."`
-	} `cmd help:"Update an existing mapping in the usher database with a new url."`
+	} `cmd help:"Update the url for an existing mapping in the usher database."`
 
 	Rm struct {
 		Code string `arg name:"code" help:"Code of mapping to remove from the database."`
@@ -33,6 +33,12 @@ var CLI struct {
 
 	Push struct {
 	} `cmd help:"Push mappings to the configured backend."`
+
+	Config struct {
+	} `cmd help:"Print the location of the usher config file."`
+
+	DB struct {
+	} `cmd help:"Print the location of the usher database file."`
 }
 
 func main() {
@@ -60,7 +66,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		entries, err := db.List(CLI.Ls.Glob)
+		entries, err := db.List("")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -120,6 +126,20 @@ func main() {
 				log.Fatal(err)
 			}
 		}
+
+	case "config":
+		db, err := usher.NewDB("")
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(db.ConfigPath)
+
+	case "db":
+		db, err := usher.NewDB("")
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(db.DBPath)
 
 	case "push":
 		db, err := usher.NewDB("")
