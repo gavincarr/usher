@@ -15,7 +15,7 @@ var CLI struct {
 
 	Ls struct {
 		Glob string `arg optional name:"glob" help:"Code glob of mappings to list."`
-	} `cmd help:"List current mappings."`
+	} `cmd help:"List current mappings in the usher database."`
 
 	Add struct {
 		Url  string `arg name:"url" help:"Url to redirect to."`
@@ -25,6 +25,9 @@ var CLI struct {
 	Rm struct {
 		Code string `arg name:"code" help:"Code of mapping to remove from the database."`
 	} `cmd help:"Remove a mapping from the usher database."`
+
+	Push struct {
+	} `cmd help:"Push mappings to the configured backend."`
 }
 
 func main() {
@@ -42,9 +45,9 @@ func main() {
 			log.Fatal(err)
 		}
 		if created {
-			fmt.Printf("Created new database %q\n", db.Filepath)
+			fmt.Printf("Created new database %q\n", db.DBPath)
 		} else {
-			fmt.Printf("Database %q already exists\n", db.Filepath)
+			fmt.Printf("Database %q already exists\n", db.DBPath)
 		}
 
 	case "ls":
@@ -97,6 +100,16 @@ func main() {
 			} else {
 				log.Fatal(err)
 			}
+		}
+
+	case "push":
+		db, err := usher.NewDB("")
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = db.Push()
+		if err != nil {
+			log.Fatal(err)
 		}
 
 	default:

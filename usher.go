@@ -2,13 +2,15 @@
 usher is a tiny personal url shortener.
 
 This library provides the maintenance functions for our simple
-database of code => url mappings.
+database of code => url mappings (a yaml file in
+filepath.join(os.UserConfigDir(), "usher")).
 */
 
 package usher
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -21,10 +23,13 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-const digits = "23456789"                // omit 0 and 1 as easily confused with o and l
-const chars = "abcdefghijkmnpqrstuvwxyz" // omit o and l as easily confused with 0 and 1
+const configfile = "usher.yml"
+
+// Random Code generation constants
 const minRandomCodeLen = 5
 const maxRandomCodeLen = 8
+const digits = "23456789"                // omit 0 and 1 as easily confused with o and l
+const chars = "abcdefghijkmnpqrstuvwxyz" // omit o and l as easily confused with 0 and 1
 
 var (
 	ErrNotFound   = errors.New("not found")
@@ -32,14 +37,22 @@ var (
 )
 
 type DB struct {
-	Root     string // full path to usher root directory containing databases
-	Domain   string // fully-qualified domain whose mappings we want
-	Filepath string // full database filepath to database for Domain
+	Root       string // full path to usher root directory containing databases
+	Domain     string // fully-qualified domain whose mappings we want
+	DBPath     string // full path to database for Domain
+	ConfigPath string // full path to usher config file
 }
 
 type Entry struct {
 	Code string
 	Url  string
+}
+
+type ConfigEntry struct {
+	Type      string `yaml:"type"`
+	AWSKey    string `yaml:"aws_key,omitempty"`
+	AWSSecret string `yaml:"aws_secret,omitempty"`
+	AWSRegion string `yaml:"aws_region,omitempty"`
 }
 
 // NewDB creates a DB struct with members derived from parameters,
@@ -64,44 +77,69 @@ func NewDB(domain string) (*DB, error) {
 		return nil, errors.New("Domain not passed as parameter or set in env USHER_DOMAIN")
 	}
 
-	// Set filepath
-	path := filepath.Join(root, domain+".yml")
+	// Set DBPath
+	dbpath := filepath.Join(root, domain+".yml")
 
-	return &DB{Root: root, Domain: domain, Filepath: path}, nil
+	// Set ConfigPath
+	configpath := filepath.Join(root, configfile)
+
+	return &DB{Root: root, Domain: domain, DBPath: dbpath, ConfigPath: configpath}, nil
 }
 
 // Init checks whether an usher root exists, creating it, if not,
 // and then checks whether an usher database exists for domain,
 // creating it if not.
-func (db *DB) Init() (created bool, err error) {
+func (db *DB) Init() (dbCreated bool, err error) {
+	dbCreated = false
+
 	// Ensure root exists
 	err = os.MkdirAll(db.Root, 0755)
 	if err != nil {
-		return false, err
+		return dbCreated, err
 	}
 
 	// Ensure database exists
-	_, err = os.Stat(db.Filepath)
+	_, err = os.Stat(db.DBPath)
 	if err == nil {
-		return false, nil // exists
+		return dbCreated, nil // exists
 	}
 	if err != nil && !os.IsNotExist(err) {
-		return false, err // unexpected error
+		return dbCreated, err // unexpected error
 	}
 
 	// Database does not exist - create
-	fh, err := os.Create(db.Filepath)
+	fh, err := os.Create(db.DBPath)
 	fh.Close()
 	if err != nil {
-		return false, err
+		return dbCreated, err
 	}
-	return true, nil
+	dbCreated = true
+
+	// Ensure configfile exists
+	_, err = os.Stat(db.ConfigPath)
+	if err == nil {
+		// FIXME: check/create an entry for domain
+	} else {
+		// Create a placeholder config file for domain
+		data := db.Domain + `:
+# type: s3
+# aws_key: foo
+# aws_secret: bar
+# aws_region: us-east-1
+`
+		err = db.writeConfigString(data)
+		if err != nil {
+			return dbCreated, err
+		}
+	}
+
+	return dbCreated, nil
 }
 
 // List returns the set of database entries whose code matches glob
 func (db *DB) List(glob string) ([]Entry, error) {
 	// FIXME: first-pass - ignore glob
-	mappings, err := db.readfile()
+	mappings, err := db.readDB()
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +167,7 @@ func (db *DB) List(glob string) ([]Entry, error) {
 // Add a mapping for url and code to the database.
 // If code is missing, a random code will be generated and returned.
 func (db *DB) Add(url, code string) (string, error) {
-	mappings, err := db.readfile()
+	mappings, err := db.readDB()
 	if err != nil {
 		return "", err
 	}
@@ -157,7 +195,7 @@ func (db *DB) Add(url, code string) (string, error) {
 
 	mappings[code] = url
 
-	err = db.writefile(mappings)
+	err = db.writeDB(mappings)
 	if err != nil {
 		return code, err
 	}
@@ -168,7 +206,7 @@ func (db *DB) Add(url, code string) (string, error) {
 // Remove the mapping with code from the database
 // Returns ErrNotFound if code does not exist in the database
 func (db *DB) Remove(code string) error {
-	mappings, err := db.readfile()
+	mappings, err := db.readDB()
 	if err != nil {
 		return err
 	}
@@ -180,7 +218,7 @@ func (db *DB) Remove(code string) error {
 
 	delete(mappings, code)
 
-	err = db.writefile(mappings)
+	err = db.writeDB(mappings)
 	if err != nil {
 		return err
 	}
@@ -188,10 +226,38 @@ func (db *DB) Remove(code string) error {
 	return nil
 }
 
-// readfile is a utility function to read all mappings from db.Filepath
+// Push syncs all current mappings with the backend configured for db.Domain
+// in db.ConfigPath
+func (db *DB) Push() error {
+	config, err := db.readConfig()
+	if err != nil {
+		return err
+	}
+
+	if config.Type == "" {
+		return fmt.Errorf("no 'type' field found for %q in config %q\n",
+			db.Domain, db.ConfigPath)
+	}
+
+	switch config.Type {
+	case "s3":
+		//fmt.Printf("+ s3 config: %v\n", config)
+		err = db.pushS3(config)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("invalid type %q found for %q in config %q\n",
+			config.Type, db.Domain, db.ConfigPath)
+	}
+
+	return nil
+}
+
+// readDB is a utility function to read all mappings from db.DBPath
 // and return as a go map
-func (db *DB) readfile() (map[string]string, error) {
-	data, err := ioutil.ReadFile(db.Filepath)
+func (db *DB) readDB() (map[string]string, error) {
+	data, err := ioutil.ReadFile(db.DBPath)
 	if err != nil {
 		return nil, err
 	}
@@ -205,19 +271,57 @@ func (db *DB) readfile() (map[string]string, error) {
 	return mappings, nil
 }
 
-// writefile is a utility function to write mappings to db.Filepath
-func (db *DB) writefile(mappings map[string]string) error {
+// writeDB is a utility function to write mappings (as yaml) to db.DBPath
+func (db *DB) writeDB(mappings map[string]string) error {
 	data, err := yaml.Marshal(mappings)
 	if err != nil {
 		return err
 	}
 
-	tmpfile := db.Filepath + ".tmp"
+	tmpfile := db.DBPath + ".tmp"
 	err = ioutil.WriteFile(tmpfile, data, 0644)
 	if err != nil {
 		return err
 	}
-	err = os.Rename(tmpfile, db.Filepath)
+	err = os.Rename(tmpfile, db.DBPath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// readConfig is a utility function to read the config entry for
+// db.Domain from db.ConfigPath file
+func (db *DB) readConfig() (*ConfigEntry, error) {
+	data, err := ioutil.ReadFile(db.ConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var entries map[string]ConfigEntry
+	err = yaml.Unmarshal(data, &entries)
+	if err != nil {
+		return nil, err
+	}
+
+	entry, exists := entries[db.Domain]
+	if !exists {
+		return nil, fmt.Errorf("no entry found for %q in config %q\n",
+			db.Domain, db.ConfigPath)
+	}
+
+	return &entry, nil
+}
+
+// writeConfigString is a utility function to write data to db.ConfigPath
+func (db *DB) writeConfigString(data string) error {
+	tmpfile := db.ConfigPath + ".tmp"
+	err := ioutil.WriteFile(tmpfile, []byte(data), 0600)
+	if err != nil {
+		return err
+	}
+	err = os.Rename(tmpfile, db.ConfigPath)
 	if err != nil {
 		return err
 	}
