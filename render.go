@@ -14,6 +14,8 @@ the Render publishing sequence is:
     usher push
 	cd $(usher root)
 	git push
+
+See `Render.md` for more details on setting up on render.com.
 */
 
 package usher
@@ -22,11 +24,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 
 	yaml "gopkg.in/yaml.v2"
 )
 
 const configName = "render.yaml"
+const buildPath = "./build"
 
 type Route struct {
 	Type        string `yaml:"type"`
@@ -35,10 +39,12 @@ type Route struct {
 }
 
 type Service struct {
-	Type   string  `yaml:"type"`
-	Name   string  `yaml:"name"`
-	Env    string  `yaml:"env"`
-	Routes []Route `yaml:"routes"`
+	Type         string  `yaml:"type"`
+	Name         string  `yaml:"name"`
+	Env          string  `yaml:"env"`
+	BuildCommand string  `yaml:"buildCommand"`
+	BuildPath    string  `yaml:"staticPublishPath"`
+	Routes       []Route `yaml:"routes"`
 }
 
 type Config struct {
@@ -58,7 +64,7 @@ func (db *DB) pushRender() error {
 		statDB, err := os.Stat(db.DBPath)
 		if err == nil {
 			// If configfile is newer than database we can noop
-			if statCF.ModTime() > statDB.ModTime() {
+			if statCF.ModTime().After(statDB.ModTime()) {
 				return nil
 			}
 		}
@@ -76,15 +82,31 @@ func (db *DB) pushRender() error {
 	service.Type = "web"
 	service.Name = db.Domain
 	service.Env = "static"
+	service.BuildCommand = ""
+	service.BuildPath = buildPath
 	service.Routes = make([]Route, len(mappings))
 	config.Services[0] = service
 
-	// Create code-url mappings
+	// Extract codes and sort (or render.yaml routes are randomly ordered)
+	codes := make([]string, len(mappings))
 	i := 0
-	for code, url := range mappings {
+	for code := range mappings {
+		codes[i] = code
+		i++
+	}
+	sort.Strings(codes)
+
+	// Create code-url mappings
+	i = 0
+	for _, code := range codes {
 		service.Routes[i].Type = "redirect"
-		service.Routes[i].Source = "/" + code
-		service.Routes[i].Destination = url
+		// Handle `indexCode` specially
+		if code == indexCode {
+			service.Routes[i].Source = "/"
+		} else {
+			service.Routes[i].Source = "/" + code
+		}
+		service.Routes[i].Destination = mappings[code]
 		i++
 	}
 
@@ -100,6 +122,31 @@ func (db *DB) pushRender() error {
 	}
 	err = os.Rename(tmpfile, configfile)
 	if err != nil {
+		return err
+	}
+
+	// Render seems to require our BuildPath to actually exist, so add `buildPath/.gitignore` if missing
+	buildDir := filepath.Join(db.Root, buildPath)
+	_, err = os.Stat(buildDir)
+	if err != nil && os.IsNotExist(err) {
+		err = os.Mkdir(buildDir, 0755)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+	gifile := filepath.Join(buildDir, ".gitignore")
+	gitignore := `*
+!.gitignore
+`
+	_, err = os.Stat(gifile)
+	if err != nil && os.IsNotExist(err) {
+		err = ioutil.WriteFile(gifile, []byte(gitignore), 0644)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
 		return err
 	}
 

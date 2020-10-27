@@ -24,6 +24,7 @@ import (
 )
 
 const configfile = "usher.yml"
+const indexCode = "INDEX"
 
 // Random Code generation constants
 const minRandomCodeLen = 5
