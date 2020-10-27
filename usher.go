@@ -288,8 +288,12 @@ func (db *DB) Push() error {
 
 	switch config.Type {
 	case "s3":
-		//fmt.Printf("+ s3 config: %v\n", config)
 		err = db.pushS3(config)
+		if err != nil {
+			return err
+		}
+	case "render":
+		err = db.pushRender()
 		if err != nil {
 			return err
 		}
