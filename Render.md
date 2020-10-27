@@ -72,11 +72,11 @@ On the render side, you need to:
    You can then do some tests by appending the codes you've configured to
    that url e.g.
 
-      https://example-me.onrender.com/test1
-      https://example-me.onrender.com/test2
+       https://example-me.onrender.com/test1
+       https://example-me.onrender.com/test2
 
-      # And if you've created an 'INDEX' code:
-      https://example-me.onrender.com/
+       # And if you've created an 'INDEX' code:
+       https://example-me.onrender.com/
 
 
 DNS Configuration
