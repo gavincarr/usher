@@ -34,6 +34,9 @@ var CLI struct {
 	Push struct {
 	} `cmd help:"Push mappings to the configured backend."`
 
+	Root struct {
+	} `cmd help:"Print the location of the usher root directory."`
+
 	Config struct {
 	} `cmd help:"Print the location of the usher config file."`
 
@@ -127,6 +130,13 @@ func main() {
 			}
 		}
 
+	case "root":
+		db, err := usher.NewDB("")
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(db.Root)
+
 	case "config":
 		db, err := usher.NewDB("")
 		if err != nil {
@@ -152,6 +162,6 @@ func main() {
 		}
 
 	default:
-		log.Fatal(ctx.Command())
+		log.Fatalf("unknown command %q\n", ctx.Command())
 	}
 }
