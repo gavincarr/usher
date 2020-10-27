@@ -432,6 +432,12 @@ func randomCode(mappings map[string]string) string {
 
 func (db *DB) configPlaceholder() string {
 	return db.Domain + `:
+# Uncomment one of the 'type' sections below for the backend you wish to use.
+# 'render' uses render.com as a backend, and needs no additional config here.
+# See https://github.com/gavincarr/usher/blob/master/Render.md for render configuration details.
+# type: render
+# 's3' uses Amazon S3 as a backed, and requires the 3 'aws_*' parameters below.
+# See https://github.com/gavincarr/usher/blob/master/S3.md for full S3 configuration details.
 # type: s3
 # aws_key: foo
 # aws_secret: bar
