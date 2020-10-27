@@ -5,8 +5,8 @@ Usher
 `usher` is a tiny personal url shortener that manages a simple local
 database of `code => url` mappings, stored in a YAML text file.
 
-Usher mappings can be published to various backends (e.g. Amazon S3)
-to provide the actual redirection services.
+Usher mappings can be published to various backends (currently
+Amazon S3 and render.com) to provide the actual redirection services.
 
 
 Installation
@@ -46,7 +46,7 @@ Usage
     usher config
     usher db
 
-    # Configure a backend to push to e.g. S3 e.g.
+    # Configure a backend to push to (`type: s3` or `type: render`) e.g.
     $EDITOR $(usher config)
 
     # Push current mappings to your backend
