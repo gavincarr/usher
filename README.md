@@ -42,7 +42,8 @@ Usage
 
 ### Configure and publish to desired backend
 
-    # Report locations of config and database
+    # Report locations of usher root directory, config and database
+    usher root
     usher config
     usher db
 
