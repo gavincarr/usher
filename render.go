@@ -3,8 +3,8 @@ usher is a tiny personal url shortener.
 
 Render (render.com) is a newish PAAS startup that offers free
 hosting for static websites, with built-in HTTPS and CDN support,
-as well as pretty interesting paid application hosting. For
-usher, it's much easier to configure than Amazon S3.
+as well as nice paid application hosting. For usher, it's much
+easier to configure than Amazon S3.
 
 This file contains functions for publishing the usher database
 mappings as an infrastructure config `render.yaml` file. That
