@@ -12,7 +12,7 @@ Amazon S3 and render.com) to provide the actual redirection services.
 Installation
 ------------
 
-    go get github.com/gavincarr/usher
+    go get github.com/gavincarr/usher/cmd/usher
 
 
 Usage

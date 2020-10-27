@@ -26,7 +26,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 )
 
 const configName = "render.yaml"
