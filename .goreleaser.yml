@@ -42,3 +42,5 @@ nfpms:
 source:
   enabled: true
   name_template: '{{ .ProjectName }}-{{ replace .Version "v" "" }}'
+env_files:
+  github_token: ~/.gh_token
