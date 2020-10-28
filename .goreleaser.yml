@@ -8,6 +8,7 @@ builds:
       - linux
       - windows
       - darwin
+    main: ./cmd/usher/usher.go
 archives:
   - replacements:
       darwin: Darwin
@@ -15,6 +16,7 @@ archives:
       windows: Windows
       386: i386
       amd64: x86_64
+    name_template: '{{ .ProjectName }}-{{ replace .Version "v" "" }}-{{ .Os }}_{{ .Arch }}'
 checksum:
   name_template: 'checksums.txt'
 snapshot:
@@ -25,3 +27,18 @@ changelog:
     exclude:
       - '^docs:'
       - '^test:'
+nfpms:
+  - id: nfpms
+    description: usher is a tiny url shortener that manages a local db and pushes to various cloud backends
+    maintainer: Gavin Carr <gavin@openfusion.com.au>
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    file_name_template: '{{ .ProjectName }}_{{ replace .Version "v" "" }}_{{ .Arch }}'
+    overrides:
+      rpm:
+        file_name_template: '{{ .ProjectName }}-{{ replace .Version "v" "" }}.{{ .Arch }}'
+source:
+  enabled: true
+  name_template: '{{ .ProjectName }}-{{ replace .Version "v" "" }}'
