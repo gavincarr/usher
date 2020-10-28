@@ -39,8 +39,9 @@ nfpms:
     overrides:
       rpm:
         file_name_template: '{{ .ProjectName }}-{{ replace .Version "v" "" }}.{{ .Arch }}'
-source:
-  enabled: true
-  name_template: '{{ .ProjectName }}-{{ replace .Version "v" "" }}'
+release:
+  github:
+    owner: gavincarr
+    name: usher
 env_files:
-  github_token: ~/.gh_token
+  github_token: ~/.gh_goreleaser
