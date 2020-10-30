@@ -341,9 +341,13 @@ func (db *DB) readDB() (map[string]string, error) {
 
 // writeDB is a utility function to write mappings (as yaml) to db.DBPath
 func (db *DB) writeDB(mappings map[string]string) error {
-	data, err := yaml.Marshal(mappings)
-	if err != nil {
-		return err
+	var data []byte
+	var err error
+	if len(mappings) > 0 {
+		data, err = yaml.Marshal(mappings)
+		if err != nil {
+			return err
+		}
 	}
 
 	tmpfile := db.DBPath + ".tmp"

@@ -39,7 +39,7 @@ For example, if you've created an empty github repo called e.g.
      $ git init
      $ git add .
      $ git commit -m 'Initial import'
-     $ git remote add origin git@github.com:USERNAME/usher_example
+     $ git remote add origin git@github.com:USERNAME/usher_example.git
      $ git push origin master
 
 and your usher database and the `render.yaml` file should show up in your
