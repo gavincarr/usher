@@ -32,6 +32,7 @@ const maxRandomCodeLen = 8
 const digits = "23456789"                // omit 0 and 1 as easily confused with o and l
 const chars = "abcdefghijkmnpqrstuvwxyz" // omit o and l as easily confused with 0 and 1
 
+// Errors
 var (
 	ErrNotFound   = errors.New("not found")
 	ErrCodeExists = errors.New("code already used")
@@ -64,6 +65,17 @@ func NewDB(domain string) (*DB, error) {
 	// Get root
 	root := os.Getenv("USHER_ROOT")
 	if root == "" {
+		// If USHER_ROOT is unset, check if there is an usher.yml in the cwd
+		stat, err := os.Stat("usher.yml")
+		if err == nil && !stat.IsDir() {
+			cwd, err := os.Getwd()
+			if err == nil {
+				root = cwd
+			}
+		}
+	}
+	if root == "" {
+		// If root is still unset, default to "os.UserConfigDir()/usher"
 		configDir, err := os.UserConfigDir()
 		if err != nil {
 			return nil, err
