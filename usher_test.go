@@ -32,6 +32,9 @@ func TestBasic(t *testing.T) {
 	testUpdate(t, db, cmp, "test2", "https://example.com/test3", "update1.yml")
 	testAdd(t, db, cmp, "test4", "https://example.com/test4", "add3.yml")
 	testPushRender(t, db, cmp)
+	code := testAddRandom(t, db, cmp, "https://example.com/test5")
+	testList(t, db, []string{"test1", "test2", "test4", code})
+	testRemove(t, db, cmp, code, "add3.yml")
 	testRemove(t, db, cmp, "test1", "remove1.yml")
 	testRemove(t, db, cmp, "test4", "remove2.yml")
 	testRemove(t, db, cmp, "test2", "empty.yml")
@@ -70,6 +73,15 @@ func testAdd(t *testing.T, db *DB, cmp *equalfile.Cmp, code, url, goldenfile str
 	}
 }
 
+func testAddRandom(t *testing.T, db *DB, cmp *equalfile.Cmp, url string) string {
+	code, err := db.Add(url, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return code
+}
+
 func testUpdate(t *testing.T, db *DB, cmp *equalfile.Cmp, code, url, goldenfile string) {
 	err := db.Update(url, code)
 	if err != nil {
@@ -82,6 +94,28 @@ func testUpdate(t *testing.T, db *DB, cmp *equalfile.Cmp, code, url, goldenfile 
 	}
 	if !equal {
 		t.Errorf("post-Update() db %q differs from expected %q", dbfile, goldenfile)
+	}
+}
+
+func testList(t *testing.T, db *DB, codes []string) {
+	entries, err := db.List("")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entries) != len(codes) {
+		t.Errorf("List() returned %d entries, expected %d\n", len(entries), len(codes))
+	}
+
+	// All entries should exist in codes
+	codeMap := make(map[string]bool)
+	for _, code := range codes {
+		codeMap[code] = true
+	}
+	for _, entry := range entries {
+		if _, exists := codeMap[entry.Code]; !exists {
+			t.Errorf("List entry %q not found in expected codes: %v\n", entry.Code, codes)
+		}
 	}
 }
 
