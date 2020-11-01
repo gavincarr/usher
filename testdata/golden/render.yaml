@@ -1,0 +1,16 @@
+services:
+    - type: web
+      name: example.me
+      env: static
+      buildCommand: ""
+      staticPublishPath: ./build
+      routes:
+        - type: redirect
+          source: /test1
+          destination: https://example.com/test1
+        - type: redirect
+          source: /test2
+          destination: https://example.com/test3
+        - type: redirect
+          source: /test4
+          destination: https://example.com/test4

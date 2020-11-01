@@ -30,7 +30,10 @@ func TestBasic(t *testing.T) {
 	testAdd(t, db, cmp, "test1", "https://example.com/test1", "add1.yml")
 	testAdd(t, db, cmp, "test2", "https://example.com/test2", "add2.yml")
 	testUpdate(t, db, cmp, "test2", "https://example.com/test3", "update1.yml")
+	testAdd(t, db, cmp, "test4", "https://example.com/test4", "add3.yml")
+	testPushRender(t, db, cmp)
 	testRemove(t, db, cmp, "test1", "remove1.yml")
+	testRemove(t, db, cmp, "test4", "remove2.yml")
 	testRemove(t, db, cmp, "test2", "empty.yml")
 }
 
@@ -94,6 +97,42 @@ func testRemove(t *testing.T, db *DB, cmp *equalfile.Cmp, code, goldenfile strin
 	}
 	if !equal {
 		t.Errorf("post-Remove() db %q differs from expected %q", dbfile, goldenfile)
+	}
+}
+
+func testPushRender(t *testing.T, db *DB, cmp *equalfile.Cmp) {
+	outfile := "render.yaml"
+
+	// Remove any existing outfile
+	_, err := os.Stat(outfile)
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	} else if err == nil {
+		err = os.Remove(outfile)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Replace configfile with render version
+	err = db.writeConfigString(db.Domain + `:
+  type: render
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = db.Push()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	equal, err := cmp.CompareFile(outfile, filepath.Join(testGolden, outfile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !equal {
+		t.Errorf("post-Push() output file %q differs from expected", outfile)
 	}
 }
 
