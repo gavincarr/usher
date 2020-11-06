@@ -3,6 +3,7 @@
 package usher
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -211,6 +212,30 @@ func testPushRender(t *testing.T, db *DB, cmp *equalfile.Cmp, cwd string) {
 		}
 	}
 
+	// If we use the existing configfile, we should get an ErrPushTypeUnconfigured error
+	pushErr := db.Push()
+	if pushErr == nil {
+		t.Error("Push() with unconfigured config did not return an error!")
+	}
+	if pushErr != ErrPushTypeUnconfigured {
+		t.Errorf("Unexpected error from Push() with unconfigured config: %s\n", pushErr)
+	}
+
+	// If we replace configfile with a bogus type, we should get an ErrPushTypeBad error
+	err = db.writeConfigString(db.Domain + `:
+  type: bogus
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pushErr = db.Push()
+	if pushErr == nil {
+		t.Error("Push() with bogus type config did not return an error!")
+	}
+	if !errors.Is(pushErr, ErrPushTypeBad) {
+		t.Fatalf("Unexpected error from Push() with bogus type config: %s\n", pushErr)
+	}
+
 	// Replace configfile with render version
 	err = db.writeConfigString(db.Domain + `:
   type: render
@@ -269,7 +294,8 @@ func doSetupExisting(t *testing.T, cwd string) {
 	fh.Close()
 }
 
-// doSetupNew is a utility function to prep a new root directory for testing
+// doSetupNew is a utility function to prep a new root directory for testing,
+// using USHER_ROOT
 func doSetupNew(t *testing.T, cwd string) {
 	// Set/unset usher environment variables
 	root, err := filepath.Abs(testRootNew)

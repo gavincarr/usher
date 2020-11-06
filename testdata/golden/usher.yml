@@ -1,5 +1,7 @@
 example.me:
-# Uncomment one of the 'type' sections below for the backend you wish to use.
+  type: unconfigured
+# Replace the line above with one of the 'type' sections below for the backend
+# you wish to use.
 # 'render' uses render.com as a backend, and needs no additional config here.
 # See https://github.com/gavincarr/usher/blob/master/Render.md for render configuration details.
 # type: render

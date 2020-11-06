@@ -34,9 +34,11 @@ const chars = "abcdefghijkmnpqrstuvwxyz" // omit o and l as easily confused with
 
 // Errors
 var (
-	ErrNotFound   = errors.New("not found")
-	ErrCodeExists = errors.New("code already used")
-	ErrNoChange   = errors.New("mapping unchanged")
+	ErrNotFound             = errors.New("not found")
+	ErrCodeExists           = errors.New("code already used")
+	ErrNoChange             = errors.New("mapping unchanged")
+	ErrPushTypeUnconfigured = errors.New("config backend type is unconfigured")
+	ErrPushTypeBad          = errors.New("config backend type is bad")
 )
 
 type DB struct {
@@ -310,9 +312,11 @@ func (db *DB) Push() error {
 		if err != nil {
 			return err
 		}
+	case "unconfigured":
+		return ErrPushTypeUnconfigured
 	default:
-		return fmt.Errorf("invalid type %q found for %q in config %q\n",
-			config.Type, db.Domain, db.ConfigPath)
+		return fmt.Errorf("invalid config backend type %q found for %q: %w",
+			config.Type, db.Domain, ErrPushTypeBad)
 	}
 
 	return nil
@@ -448,7 +452,9 @@ func randomCode(mappings map[string]string) string {
 
 func (db *DB) configPlaceholder() string {
 	return db.Domain + `:
-# Uncomment one of the 'type' sections below for the backend you wish to use.
+  type: unconfigured
+# Replace the line above with one of the 'type' sections below for the backend
+# you wish to use.
 # 'render' uses render.com as a backend, and needs no additional config here.
 # See https://github.com/gavincarr/usher/blob/master/Render.md for render configuration details.
 # type: render
