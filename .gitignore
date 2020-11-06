@@ -13,4 +13,5 @@
 /pkg/linux_amd64/*
 /pkg/*.*/
 /src/*.*/
+/testdata/root2
 /var/*

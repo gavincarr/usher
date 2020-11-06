@@ -12,44 +12,101 @@ import (
 )
 
 const (
-	testRoot   = "testdata/root"
-	testGolden = "../golden"
-	domain     = "example.me"
-	dbfile     = "example.me.yml"
+	testDir          = "testdata"
+	testRootExisting = "testdata/root"
+	testRootNew      = "testdata/root2"
+	testGolden       = "testdata/golden"
+	domain           = "example.me"
+	dbfile           = "example.me.yml"
 )
 
+// TestBasic runs integration tests from an existing root directory
 func TestBasic(t *testing.T) {
-	doSetup(t)
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	doSetupExisting(t, cwd)
 	cmp := equalfile.New(nil, equalfile.Options{})
 
+	db := testNewDBDomain(t, cwd, testRootExisting, domain)
+	testInit(t, db, cwd, cmp)
+	testAdd(t, db, cmp, cwd, "test1", "https://example.com/test1", "add1.yml")
+	db2 := testNewDBInferDomain(t, cwd, domain)
+	testAdd(t, db2, cmp, cwd, "test2", "https://example.com/test2", "add2.yml")
+	testUpdate(t, db, cmp, cwd, "test2", "https://example.com/test3", "update1.yml")
+	testAdd(t, db, cmp, cwd, "test4", "https://example.com/test4", "add3.yml")
+	testPushRender(t, db, cmp, cwd)
+	code := testAddRandom(t, db, cmp, "https://example.com/test5")
+	testList(t, db, []string{"test1", "test2", "test4", code})
+	testRemove(t, db, cmp, cwd, code, "add3.yml")
+	testRemove(t, db, cmp, cwd, "test1", "remove1.yml")
+	testRemove(t, db, cmp, cwd, "test4", "remove2.yml")
+	testRemove(t, db, cmp, cwd, "test2", "empty.yml")
+
+	// Reset cwd
+	err = os.Chdir(cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestNewRoot runs integration tests from outside a new root directory
+func TestNewRoot(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	doSetupNew(t, cwd)
+	cmp := equalfile.New(nil, equalfile.Options{})
+
+	db := testNewDBDomain(t, cwd, testRootNew, domain)
+	testInit(t, db, cwd, cmp)
+	testAdd(t, db, cmp, cwd, "test1", "https://example.com/test1", "add1.yml")
+	testAdd(t, db, cmp, cwd, "test2", "https://example.com/test2", "add2.yml")
+	testUpdate(t, db, cmp, cwd, "test2", "https://example.com/test3", "update1.yml")
+	testAdd(t, db, cmp, cwd, "test4", "https://example.com/test4", "add3.yml")
+	code := testAddRandom(t, db, cmp, "https://example.com/test5")
+	testList(t, db, []string{"test1", "test2", "test4", code})
+	testRemove(t, db, cmp, cwd, code, "add3.yml")
+}
+
+func testNewDBDomain(t *testing.T, cwd, root, domain string) *DB {
 	db, err := NewDB(domain)
 	if err != nil {
 		t.Fatal(err)
 	}
-	testInit(t, db, cmp)
-	testAdd(t, db, cmp, "test1", "https://example.com/test1", "add1.yml")
-	testAdd(t, db, cmp, "test2", "https://example.com/test2", "add2.yml")
-	testUpdate(t, db, cmp, "test2", "https://example.com/test3", "update1.yml")
-	testAdd(t, db, cmp, "test4", "https://example.com/test4", "add3.yml")
-	testPushRender(t, db, cmp)
-	code := testAddRandom(t, db, cmp, "https://example.com/test5")
-	testList(t, db, []string{"test1", "test2", "test4", code})
-	testRemove(t, db, cmp, code, "add3.yml")
-	testRemove(t, db, cmp, "test1", "remove1.yml")
-	testRemove(t, db, cmp, "test4", "remove2.yml")
-	testRemove(t, db, cmp, "test2", "empty.yml")
+	if db.Root != filepath.Join(cwd, root) {
+		t.Fatalf("NewDB root %q differs from expected %q",
+			db.Root, filepath.Join(cwd, root))
+	}
+	if db.Domain != domain {
+		t.Fatalf("db domain %q differs from expected %q", db.Domain, domain)
+	}
+	return db
 }
 
-func testInit(t *testing.T, db *DB, cmp *equalfile.Cmp) {
+func testNewDBInferDomain(t *testing.T, cwd, domain string) *DB {
+	db, err := NewDB("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if db.Domain != domain {
+		t.Errorf("db2 domain %q differs from expected %q", db.Domain, domain)
+	}
+	return db
+}
+
+func testInit(t *testing.T, db *DB, cwd string, cmp *equalfile.Cmp) {
 	created, err := db.Init()
 	if err != nil {
 		t.Fatal(err)
 	}
+	assert.Equal(t, true, created, "new database created by Init()")
 
-	assert.Equal(t, created, true, "new database created by Init()")
 	equal, err := cmp.CompareFile(
-		filepath.Join(configfile),
-		filepath.Join(testGolden, configfile))
+		filepath.Join(db.Root, configfile),
+		filepath.Join(cwd, testGolden, configfile))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,13 +115,15 @@ func testInit(t *testing.T, db *DB, cmp *equalfile.Cmp) {
 	}
 }
 
-func testAdd(t *testing.T, db *DB, cmp *equalfile.Cmp, code, url, goldenfile string) {
+func testAdd(t *testing.T, db *DB, cmp *equalfile.Cmp, cwd, code, url, goldenfile string) {
 	_, err := db.Add(url, code)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	equal, err := cmp.CompareFile(dbfile, filepath.Join(testGolden, goldenfile))
+	equal, err := cmp.CompareFile(
+		filepath.Join(db.Root, dbfile),
+		filepath.Join(cwd, testGolden, goldenfile))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,13 +141,15 @@ func testAddRandom(t *testing.T, db *DB, cmp *equalfile.Cmp, url string) string 
 	return code
 }
 
-func testUpdate(t *testing.T, db *DB, cmp *equalfile.Cmp, code, url, goldenfile string) {
+func testUpdate(t *testing.T, db *DB, cmp *equalfile.Cmp, cwd, code, url, goldenfile string) {
 	err := db.Update(url, code)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	equal, err := cmp.CompareFile(dbfile, filepath.Join(testGolden, goldenfile))
+	equal, err := cmp.CompareFile(
+		filepath.Join(db.Root, dbfile),
+		filepath.Join(cwd, testGolden, goldenfile))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,13 +180,15 @@ func testList(t *testing.T, db *DB, codes []string) {
 	}
 }
 
-func testRemove(t *testing.T, db *DB, cmp *equalfile.Cmp, code, goldenfile string) {
+func testRemove(t *testing.T, db *DB, cmp *equalfile.Cmp, cwd, code, goldenfile string) {
 	err := db.Remove(code)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	equal, err := cmp.CompareFile(dbfile, filepath.Join(testGolden, goldenfile))
+	equal, err := cmp.CompareFile(
+		filepath.Join(db.Root, dbfile),
+		filepath.Join(cwd, testGolden, goldenfile))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +197,7 @@ func testRemove(t *testing.T, db *DB, cmp *equalfile.Cmp, code, goldenfile strin
 	}
 }
 
-func testPushRender(t *testing.T, db *DB, cmp *equalfile.Cmp) {
+func testPushRender(t *testing.T, db *DB, cmp *equalfile.Cmp, cwd string) {
 	outfile := "render.yaml"
 
 	// Remove any existing outfile
@@ -161,7 +224,9 @@ func testPushRender(t *testing.T, db *DB, cmp *equalfile.Cmp) {
 		t.Fatal(err)
 	}
 
-	equal, err := cmp.CompareFile(outfile, filepath.Join(testGolden, outfile))
+	equal, err := cmp.CompareFile(
+		filepath.Join(db.Root, outfile),
+		filepath.Join(cwd, testGolden, outfile))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,9 +235,20 @@ func testPushRender(t *testing.T, db *DB, cmp *equalfile.Cmp) {
 	}
 }
 
-// setup is a utility function to set up our root directory for testing
-func doSetup(t *testing.T) {
-	err := os.Chdir(testRoot)
+// doSetupExisting is a utility function to prep an existing root directory for testing
+func doSetupExisting(t *testing.T, cwd string) {
+	// Unset usher environment variables
+	err := os.Unsetenv("USHER_ROOT")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.Unsetenv("USHER_DOMAIN")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Chdir to testRootExisting for this test (precondition for Init() to work)
+	err = os.Chdir(filepath.Join(cwd, testRootExisting))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +264,38 @@ func doSetup(t *testing.T) {
 		}
 	}
 
-	// Truncate any existing config
+	// Truncate any existing config (not remove, so can still infer the root)
 	fh, err := os.Create(configfile)
 	fh.Close()
+}
+
+// doSetupNew is a utility function to prep a new root directory for testing
+func doSetupNew(t *testing.T, cwd string) {
+	// Set/unset usher environment variables
+	root, err := filepath.Abs(testRootNew)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.Setenv("USHER_ROOT", root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.Unsetenv("USHER_DOMAIN")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that the testDir directory exists, to ensure Cwd is correct
+	_, err = os.Stat(filepath.Join(cwd, testDir))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatalf("test directory %q does not exist!", filepath.Join(cwd, testDir))
+	} else if err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove any testRootExisting directory and contents (succeeds if missing)
+	err = os.RemoveAll(filepath.Join(cwd, testRootNew))
+	if err != nil {
+		t.Fatal(err)
+	}
 }
