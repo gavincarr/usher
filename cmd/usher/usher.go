@@ -158,7 +158,11 @@ func main() {
 		}
 		err = db.Push()
 		if err != nil {
-			log.Fatal(err)
+			if err == usher.ErrPushTypeUnconfigured {
+				log.Fatalf("Error: backend `type` is not configured in config %q\n", db.ConfigPath)
+			} else {
+				log.Fatal("Error: " + err.Error())
+			}
 		}
 
 	default:
